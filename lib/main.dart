@@ -23,7 +23,7 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController(text: '1000000');
   final _rateController = TextEditingController(text: '3.5');
-  final _yearsController = TextEditingController(text: '30');
+  final _yearsController = TextEditingController(text: '20');
 
   double? monthlyPayment;
   double? totalInterest;
