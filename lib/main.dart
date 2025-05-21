@@ -43,6 +43,24 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
     }
   }
 
+  void _showRewardDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Transform.scale(
+          scale: 0.5,
+          child: Image.asset('assets/reward_qr.png'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('关闭'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,6 +102,13 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
                 Text('每月还款: ¥${monthlyPayment!.toStringAsFixed(2)}'),
                 Text('累计利息: ¥${totalInterest!.toStringAsFixed(2)}'),
                 Text('全部还款: ¥${totalPayment!.toStringAsFixed(2)}'),
+                SizedBox(height: 20),
+                Center(
+                  child: ElevatedButton(
+                    onPressed: _showRewardDialog,
+                    child: Text('打赏支持'),
+                  ),
+                ),
               ]
             ],
           ),
