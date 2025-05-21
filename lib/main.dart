@@ -21,7 +21,7 @@ class MortgageCalculatorPage extends StatefulWidget {
 
 class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
   final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController(text: '1000000');
+  final _amountController = TextEditingController(text: '100.0');
   final _rateController = TextEditingController(text: '3.5');
   final _yearsController = TextEditingController(text: '30');
 
@@ -29,9 +29,11 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
   double? totalInterest;
   double? totalPayment;
 
+  List<Map<String, dynamic>>? yearlyPlan;
+
   void _calculate() {
     if (_formKey.currentState!.validate()) {
-      final amount = double.parse(_amountController.text);
+      final amount = double.parse(_amountController.text) * 10000;
       final rate = double.parse(_rateController.text);
       final years = int.parse(_yearsController.text);
       final result = MortgageUtils.calculate(amount, rate, years);
@@ -39,8 +41,74 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
         monthlyPayment = result['monthlyPayment'];
         totalInterest = result['totalInterest'];
         totalPayment = result['totalPayment'];
+        yearlyPlan = MortgageUtils.getYearlyPaymentPlan(amount, rate, years);
       });
     }
+  }
+
+  void _showPaymentPlan() {
+    if (yearlyPlan == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('每年还款计划'),
+        content: Container(
+          constraints: BoxConstraints(maxHeight: 500),
+          width: 500,
+          child: Column(
+            children: [
+              // Fixed header row
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return SizedBox(
+                    width: constraints.maxWidth,
+                    child: DataTable(
+                      headingRowHeight: 40,
+                      columns: const [
+                        DataColumn(label: SizedBox(width: 80, child: Text('年份'))),
+                        DataColumn(label: SizedBox(width: 100, child: Text('本金(万元)'))),
+                        DataColumn(label: SizedBox(width: 100, child: Text('利息(万元)'))),
+                        DataColumn(label: SizedBox(width: 100, child: Text('剩余(万元)'))),
+                      ],
+                      rows: const [],
+                    ),
+                  );
+                },
+              ),
+              // Scrollable content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: DataTable(
+                    headingRowHeight: 0, // Hide duplicate header
+                    columns: const [
+                      DataColumn(label: SizedBox(width: 80, child: Text(''))),
+                      DataColumn(label: SizedBox(width: 100, child: Text(''))),
+                      DataColumn(label: SizedBox(width: 100, child: Text(''))),
+                      DataColumn(label: SizedBox(width: 100, child: Text(''))),
+                    ],
+                    rows: yearlyPlan!.map((year) {
+                      return DataRow(cells: [
+                        DataCell(Text('第${year['year']}年')),
+                        DataCell(Text(year['principal'].toStringAsFixed(2))),
+                        DataCell(Text(year['interest'].toStringAsFixed(2))),
+                        DataCell(Text(year['remaining'].toStringAsFixed(2))),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('关闭'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showRewardDialog() {
@@ -74,7 +142,7 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
             children: [
               TextFormField(
                 controller: _amountController,
-                decoration: InputDecoration(labelText: '贷款总额 (元)'),
+                decoration: InputDecoration(labelText: '贷款总额 (万元)'),
                 keyboardType: TextInputType.number,
                 validator: (value) => value == null || value.isEmpty ? '请输入贷款总额' : null,
               ),
@@ -99,15 +167,22 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
               ),
               SizedBox(height: 30),
               if (monthlyPayment != null) ...[
-                Text('每月还款: ¥${monthlyPayment!.toStringAsFixed(2)}'),
-                Text('累计利息: ¥${totalInterest!.toStringAsFixed(2)}'),
-                Text('全部还款: ¥${totalPayment!.toStringAsFixed(2)}'),
+                Text('每月还款: ${monthlyPayment!.toStringAsFixed(2)}万元'),
+                Text('累计利息: ${totalInterest!.toStringAsFixed(2)}万元'),
+                Text('全部还款: ${totalPayment!.toStringAsFixed(2)}万元'),
                 SizedBox(height: 20),
-                Center(
-                  child: ElevatedButton(
-                    onPressed: _showRewardDialog,
-                    child: Text('打赏支持'),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _showPaymentPlan,
+                      child: Text('每年还款计划'),
+                    ),
+                    ElevatedButton(
+                      onPressed: _showRewardDialog,
+                      child: Text('打赏支持'),
+                    ),
+                  ],
                 ),
               ]
             ],
