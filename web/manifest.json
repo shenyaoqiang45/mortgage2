@@ -1,11 +1,11 @@
 {
-    "name": "test_morgage",
-    "short_name": "test_morgage",
+    "name": "2025房贷计算器",
+    "short_name": "房贷计算器",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "免费智能房贷计算器，支持商业贷款、公积金、组合贷款，精准计算月供、总利息，提供最佳还款方案，帮您节省10万+利息！",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
