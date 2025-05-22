@@ -28,13 +28,14 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
   final _amountController = TextEditingController(text: '100.0');
   final _rateController = TextEditingController(text: '3.5');
   final _yearsController = TextEditingController(text: '30');
-  final _incomeController = TextEditingController(text: '2.0');
+  final _incomeController = TextEditingController(text: '1.0');
 
   double? monthlyPayment;
   double? optimalMonthlyPayment;
   double? totalInterest;
   double? optimalTotalInterest;
   double? totalPayment;
+  double? optimalTotalPayment;
 
   int? optimalYears;
   String? safetyLevel;
@@ -43,74 +44,41 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
 
   void _calculate() {
     if (_formKey.currentState!.validate()) {
-      final amount = double.parse(_amountController.text) * 10000;
+      final amount = double.parse(_amountController.text); // 直接使用万元单位
       final rate = double.parse(_rateController.text);
       final years = int.parse(_yearsController.text);
-      final result = MortgageUtils.calculate(amount, rate, years);
+
       setState(() {
-        monthlyPayment = result['monthlyPayment'];
-        totalInterest = result['totalInterest'];
-        totalPayment = result['totalPayment'];
-        yearlyPlan = MortgageUtils.getYearlyPaymentPlan(amount, rate, years);
-        
         // 计算最优方案
         final incomeText = _incomeController.text ?? '';
         final income = double.tryParse(incomeText) ?? 0.0;
-        
-        if (income <= 0) {
-          // 如果收入无效，使用当前贷款年限计算的月供作为安全等级判断依据
-          final monthlyPaymentForSafety = result['monthlyPayment']!;
-          final disposableIncome = monthlyPaymentForSafety / defaultRiskThreshold;
-          safetyLevel = MortgageUtils.calculateSafetyLevel(disposableIncome, monthlyPaymentForSafety, defaultRiskThreshold);
+        if(income > 0){
+          optimalYears = MortgageUtils.calculateOptimalYears(amount, rate, income, defaultRiskThreshold);
+          final result = MortgageUtils.calculate(amount, rate, optimalYears!);
+          optimalMonthlyPayment = result['monthlyPayment'];
+          optimalTotalInterest = result['totalInterest'];
+          optimalTotalPayment = result['totalPayment'];
+          yearlyPlan = MortgageUtils.getYearlyPaymentPlan(amount, rate, optimalYears!);
+        }
+        else
+        {
+          // 计算固定年限方案
+          final result = MortgageUtils.calculate(amount, rate, years);
+          monthlyPayment = result['monthlyPayment'];
+          totalInterest = result['totalInterest'];
+          totalPayment = result['totalPayment'];
+          yearlyPlan = MortgageUtils.getYearlyPaymentPlan(amount, rate, years);
+        }
+
+        // 计算安全等级
+        if (income > 0) {
+          final monthlyPayment = optimalMonthlyPayment ?? 0.0;
+          safetyLevel = MortgageUtils.calculateSafetyLevel(income, monthlyPayment, defaultRiskThreshold);
         } else {
-          final optimalResult = MortgageUtils.calculateOptimalYears(amount, rate, 
-              income * 10000, defaultRiskThreshold);
-          
-          optimalYears = optimalResult['optimalYears'];
-          optimalMonthlyPayment = optimalResult['monthlyPayment'];
-          optimalTotalInterest = optimalResult['totalInterest'];
-          safetyLevel = optimalResult['safety'] ?? '一般';
+          safetyLevel = null;
         }
       });
     }
-  }
-
-  void _showOptimalInfo() {
-    if (optimalYears == null) return;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('最优贷款方案'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('推荐年限: ${optimalYears} 年'),
-            SizedBox(height: 10),
-            Text('每月还款: ${optimalMonthlyPayment!.toStringAsFixed(2)} 万元'),
-            SizedBox(height: 10),
-            Text('总利息支出: ${optimalTotalInterest!.toStringAsFixed(2)} 万元'),
-            SizedBox(height: 10),
-            Text('风险等级: $safetyLevel'),
-            SizedBox(height: 10),
-            LinearProgressIndicator(
-              value: calculateSafetyProgress(safetyLevel!),
-              backgroundColor: Colors.grey[300],
-              valueColor: AlwaysStoppedAnimation<Color>(
-                getSafetyColor(safetyLevel!)
-              ),
-            )
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('关闭'),
-          ),
-        ],
-      ),
-    );
   }
 
   double calculateSafetyProgress(String safetyLevel) {
@@ -241,7 +209,16 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
                 controller: _incomeController,
                 decoration: InputDecoration(labelText: '月可支配收入 (万元)'),
                 keyboardType: TextInputType.number,
-                validator: (value) => value == null || value.isEmpty ? '请输入月可支配收入' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return '请输入月可支配收入';
+                  }
+                  final income = double.tryParse(value);
+                  if (income == null || income < 0|| income > 10.0) {
+                    return '月可支配收入必须在0-10万元之间';
+                  }
+                  return null;
+                },
               ),
               TextFormField(
                 controller: _yearsController,
@@ -264,14 +241,30 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
               Center(
                 child: ElevatedButton(
                   onPressed: _calculate,
-                  child: Text('计算'),
+                  child: Text('智能计算'),
                 ),
               ),
+              SizedBox(height: 10),
+              if (_incomeController.text != '0') 
+                Text('将为您计算最优贷款年限方案...', 
+                  style: TextStyle(color: Colors.blue)),
+              if (_incomeController.text == '0')
+                Text('将为您计算固定年限方案...', 
+                  style: TextStyle(color: Colors.blue)), 
               SizedBox(height: 30),
-              if (monthlyPayment != null) ...[
-                Text('每月还款: ${monthlyPayment!.toStringAsFixed(2)}万元'),
-                Text('累计利息: ${totalInterest!.toStringAsFixed(2)}万元'),
-                Text('全部还款: ${totalPayment!.toStringAsFixed(2)}万元'),
+              if (monthlyPayment != null || optimalMonthlyPayment != null) ...[
+                if (_incomeController.text == '0') ...[
+                  Text('贷款年限: ${int.parse(_yearsController.text)}年'),
+                  Text('每月还款: ${monthlyPayment!.toStringAsFixed(2)}万元'),
+                  Text('累计利息: ${totalInterest!.toStringAsFixed(2)}万元'),
+                  Text('全部还款: ${totalPayment!.toStringAsFixed(2)}万元'),
+                ] else ...[
+                  Text('推荐贷款年限: ${optimalYears ?? int.parse(_yearsController.text)}年'),
+                  Text('最优月供: ${optimalMonthlyPayment?.toStringAsFixed(2) ?? monthlyPayment!.toStringAsFixed(2)}万元'),
+                  Text('最优累计利息: ${optimalTotalInterest?.toStringAsFixed(2) ?? totalInterest!.toStringAsFixed(2)}万元'),
+                  Text('最优全部还款: ${optimalTotalPayment?.toStringAsFixed(2) ?? totalPayment!.toStringAsFixed(2)}万元'),
+                ],
+
                 SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -279,10 +272,6 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
                     ElevatedButton(
                       onPressed: _showPaymentPlan,
                       child: Text('每年还款计划'),
-                    ),
-                    ElevatedButton(
-                      onPressed: _showOptimalInfo,
-                      child: Text('查看最优方案'),
                     ),
                     ElevatedButton(
                       onPressed: _showRewardDialog,
@@ -293,7 +282,15 @@ class _MortgageCalculatorPageState extends State<MortgageCalculatorPage> {
                 if (safetyLevel != null)
                   Column(
                     children: [
+                      SizedBox(height: 20),
+                      Divider(),
+                      Text('风险评估可视化', style: TextStyle(fontSize: 16)),
                       SizedBox(height: 10),
+                      Text('推荐方案安全等级: $safetyLevel', 
+                          style: TextStyle(
+                            color: getSafetyColor(safetyLevel!),
+                            fontWeight: FontWeight.bold
+                          )),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
